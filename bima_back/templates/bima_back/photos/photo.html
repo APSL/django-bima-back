@@ -1,11 +1,16 @@
 {% extends 'bima_back/list.html' %}
 {% load i18n static bima_back_tags %}
 
-{% block content_title %}{% trans 'Photos' %}{% endblock %}
+{% block content_title %}{% trans 'Assets' %}{% endblock %}
 
 {% block buttons_actions %}{% endblock buttons_actions %}
 
 {% block breadcrumbs %}{% endblock breadcrumbs %}
+
+{% block page_css_uncompress %}
+  <link rel="stylesheet" href="{% static 'bima_back/css/normalize.css' %}">
+  <link rel="stylesheet" href="{% static 'bima_back/css/set1.css' %}">
+{% endblock page_css_uncompress %}
 
 {% block search_form %}
 
@@ -62,6 +67,16 @@
     </div>
 {% endblock content_body %}
 
+{% block javascript %}
+  {{ block.super }}
+  <script type="text/javascript">
+    var unassignedOption = {
+      id: {{ not_assigned_choice_id }},
+      text: '{{ not_assigned_choice_text }}'
+    };
+  </script>
+{% endblock javascript %}
+
 {% block page_js %}
   <script type="text/javascript">
     $(document).ready(function(){
@@ -89,6 +104,35 @@
         });
       });
 
+      $('.show-unassigned-choice').djangoSelect2({
+        // Add Unassigned choice when exists show-unassigned-choice class
+        ajax: {
+          data: function (params) {
+            var result = {
+              term: params.term,
+              page: params.page,
+              field_id: $(this).data('field_id')
+            }
+            var dependentFields = $(this).data('select2-dependent-fields')
+            if (dependentFields) {
+              dependentFields = dependentFields.trim().split(/\s+/)
+              $.each(dependentFields, function (i, dependentField) {
+                result[dependentField] = $('[name=' + dependentField + ']', $(this).closest('form')).val()
+              })
+            }
+            return result
+          },
+          processResults: function (data, page) {
+            data.results.push(unassignedOption);
+            return {
+              results: data.results,
+              pagination: {
+                more: data.more
+              }
+            }
+          }
+        }
+      })
     });
   </script>
 {% endblock page_js %}

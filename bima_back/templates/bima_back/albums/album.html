@@ -18,21 +18,27 @@
   {% breadcrumb "Albums" "album_list" %}
 {% endblock breadcrumbs %}
 
-{% block content_body %}
+{% block search_form %}
+  <div class="box box-search categorySearch">
+    <h3 class="box-title"><i class="fa fa-search"></i> {% trans 'Search by' %}</h3>
+    {% include 'bima_back/forms/filter_form.html' %}
+  </div>
+{% endblock search_form %}
 
+{% block content_body %}
   {# public album #}
-  {% if not request.GET.page or request.GET.page == '1' %}
+  {% if show_public_album %}
   <div class="col-sm-6 col-md-4 col-lg-3 album public-album">
     <div class="item-lists">
       <div class="items-images">
         <a href="{% url 'album_public_list' %}" class="imageContent">
-            <img src="{% static 'bima_back/img/public_album.jpg' %}"/>
+          <img src="{% static 'bima_back/img/public_album.jpg' %}"/>
         </a>
       </div>
       <div class="infoContent">
         <h4><i class="fa fa-folder-open"></i> {% trans 'Public Album' %}</h4>
         <div class="icons-options">
-            <a href="{% url 'album_public_list' %}" class="imageContent"><i class="fa fa-eye"></i></a>
+          <a href="{% url 'album_public_list' %}" class="imageContent"><i class="fa fa-eye"></i></a>
         </div>
       </div>
     </div>
@@ -45,7 +51,11 @@
         <div class="items-images">
           {% if album.permissions.read %}<a href="{% url 'album_detail' album.id %}" class="imageContent">{% endif %}
             {% if album.image_thumbnail %}
-                <img src="{{ album.image_thumbnail }}"/>
+              <img src="{{ album.image_thumbnail }}"/>
+            {% elif album.image_file_type == 'video' %}
+              <img src="{% static 'bima_back/img/video.jpg' %}"/>
+            {% elif album.image_file_type == 'audio' %}
+              <img src="{% static 'bima_back/img/audio.jpg' %}"/>
             {% else %}
               <img src="{% static 'bima_back/img/no-photo.jpg' %}"/>
             {% endif %}

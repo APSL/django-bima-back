@@ -10,13 +10,14 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.http import Http404
 from django.shortcuts import redirect
+from django.utils.module_loading import import_string
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 from django.views.generic.base import ContextMixin
 from django.views.generic.edit import FormMixin
 
 from .fields import TextField, Select2MultilangTagField
-from .service import DAMWebService, ServiceClientException
+from .service import ServiceClientException
 from .utils import get_language_codes
 
 
@@ -236,6 +237,22 @@ class UnpackingMixin(object):
                 self.fields[field].widget.choices = choices
 
 
+class UnassignedMixin(object):
+    """
+    Mixin to append Unassigned option
+    """
+    unassigned_field_names = ()
+    unassigned_field_class = 'show-unassigned-choice'
+
+    def __init__(self, *args, **kwargs):
+        """
+        This method append unassigned choice
+        """
+        super().__init__(*args, **kwargs)
+        for field_name in self.unassigned_field_names:
+            self.fields[field_name].widget.attrs.update({'class': self.unassigned_field_class})
+
+
 class MessageMixin(FormMessagesMixin):
     """
     Extended mixin from 'From message mixin' which set static message to display on the front page
@@ -254,7 +271,6 @@ class ServiceClientMixin(MessageMixin, ContextMixin):
     """
     Mixin to get action to Web service
     """
-    client_class = DAMWebService
     restore_action_name = ''
     action_name = ''
 
@@ -262,7 +278,7 @@ class ServiceClientMixin(MessageMixin, ContextMixin):
         try:
             return super().dispatch(request, *args, **kwargs)
         except ServiceClientException as exc:
-            if exc.code_error == 403:
+            if exc.code_error in (401, 403):
                 logout(request)
                 self.error_message(_("You don't have permissions to do this action! Log in."))
                 return redirect('home')
@@ -281,7 +297,13 @@ class ServiceClientMixin(MessageMixin, ContextMixin):
         """
         :return: Client instance
         """
-        return self.client_class(self.request)
+        client_class_name = 'bima_back.service.DAMWebService'
+        if hasattr(settings, 'WEB_SERVICE_CLIENT_CLASS') and settings.WEB_SERVICE_CLIENT_CLASS:
+            client_class_name = settings.WEB_SERVICE_CLIENT_CLASS
+
+        client_class = import_string(client_class_name)
+
+        return client_class(self.request)
 
     def get_action_name(self):
         """
@@ -396,19 +418,31 @@ class PhotoMixin(ModelMixin):
 
     @property
     def photo_author_selected(self):
-        return self.instance['author'], self.instance['extra_info']['author_display']
+        extra_info = self.instance['extra_info']
+        if 'author_display' in extra_info and extra_info['author_display']:
+            return self.instance['author'], extra_info['author_display']
+        return None, ''
 
     @property
     def photo_copyright_selected(self):
-        return self.instance['copyright'], self.instance['extra_info']['copyright_display']
+        extra_info = self.instance['extra_info']
+        if 'copyright_display' in extra_info and extra_info['copyright_display']:
+            return self.instance['copyright'], extra_info['copyright_display']
+        return None, ''
 
     @property
     def photo_internal_restriction_selected(self):
-        return self.instance['internal_usage_restriction'], self.instance['extra_info']['internal_restriction_display']
+        extra_info = self.instance['extra_info']
+        if 'internal_restriction_display' in extra_info and extra_info['internal_restriction_display']:
+            return self.instance['internal_restriction'], extra_info['internal_restriction_display']
+        return None, ''
 
     @property
     def photo_external_restriction_selected(self):
-        return self.instance['external_usage_restriction'], self.instance['extra_info']['external_restriction_display']
+        extra_info = self.instance['extra_info']
+        if 'external_usage_restriction' in extra_info and extra_info['external_usage_restriction']:
+            return self.instance['external_usage_restriction'], extra_info['external_usage_restriction']
+        return None, ''
 
     @property
     def photo_type_selected(self):

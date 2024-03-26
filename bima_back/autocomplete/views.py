@@ -113,13 +113,21 @@ class GroupSearchView(BaseSearchView):
     lookup_field = 'name'
 
 
-class UserCreateView(BaseSearchView):
+class UserSearchView(BaseSearchView):
+    """
+    User autocomplete should only search active users
+    """
     action_name = 'get_users_list'
     lookup_field = 'full_name'
 
+    def get_extra_action_kwargs(self):
+        extra_kwargs = super().get_extra_action_kwargs()
+        extra_kwargs.update({'is_active': True})
+        return extra_kwargs
+
 
 class AlbumSearchView(BaseSearchView):
-    action_name = 'get_albums_list'
+    action_name = 'get_albums_simple_list'
     lookup_field = 'title'
     text_field = 'title'
 
@@ -137,7 +145,7 @@ class CategorySearchView(BaseSearchView):
 
 
 class GallerySearchView(BaseSearchView):
-    action_name = 'get_galleries_list'
+    action_name = 'get_galleries_simple_list'
     lookup_field = 'title'
     text_field = 'title'
     filter_by_user = True

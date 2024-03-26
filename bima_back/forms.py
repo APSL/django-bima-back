@@ -10,11 +10,21 @@ from django.utils.translation import ugettext as _
 from geoposition.forms import GeopositionField
 
 from .fields import Select2Field, Select2MultipleField, Select2TagField
-from .mixins import UnpackingMixin, FieldsetFormMixin, TranslatableFormMixin
+from .mixins import UnpackingMixin, FieldsetFormMixin, TranslatableFormMixin, UnassignedMixin
 from .constants import LOG_ACTIONS, PHOTO_STATUS_CHOICES, BLANK_CHOICES
 
 
 EXIF_DATE_FORMAT = '%d/%m/%Y'
+
+IMAGE_FORMATS = ('gif', 'jpeg', 'jpg', 'png', 'tif', 'tiff', 'psd')
+
+# from https://support.google.com/youtube/troubleshooter/2888402?hl=en
+VIDEO_FORMATS = ('mov', 'mpeg4', 'mp4', 'avi', 'wmv', 'mpegps', 'flv', '3gpp', 'webm')
+
+# from https://help.soundcloud.com/hc/en-us/articles/115003452847-Uploading-requirements
+AUDIO_FORMATS = ('aiff', 'wav', 'flac', 'alac', 'ogg', 'mp2', 'mp3', 'aac', 'amr', 'wma')
+
+FORMATS = IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS
 
 
 class FilterBase(forms.Form):
@@ -74,6 +84,13 @@ class AlbumPhotoCreateForm(TranslatableFormMixin, PhotoEditBase):
     """
     translatable_fields = (
         ('title', {'type': TranslatableFormMixin.CHAR, 'label': _('Title'), 'required': True, 'max_length': 128}),
+        ('keywords', {
+            'type': TranslatableFormMixin.SELECT_MULTILANG_TAG,
+            'label': _('Keywords'),
+            'required': getattr(settings, 'PHOTO_KEYWORDS_REQUIRED', False),
+            'data_view': 'keyword_search'}),
+        ('description', {'type': TranslatableFormMixin.TEXT, 'label': _('Description'),
+                         'required': False}),
     )
 
     upload_id = forms.CharField(widget=forms.widgets.HiddenInput())
@@ -119,8 +136,11 @@ class PhotoEditForm(UnpackingMixin, FieldsetFormMixin, TranslatableFormMixin, Ph
 
     translatable_fields = (
         ('title', {'type': TranslatableFormMixin.CHAR, 'label': _('Title'), 'required': True, 'max_length': 128}),
-        ('keywords', {'type': TranslatableFormMixin.SELECT_MULTILANG_TAG, 'label': _('Keywords'), 'required': False,
-                      'data_view': 'keyword_search'}),
+        ('keywords', {
+            'type': TranslatableFormMixin.SELECT_MULTILANG_TAG,
+            'label': _('Keywords'),
+            'required': getattr(settings, 'PHOTO_KEYWORDS_REQUIRED', False),
+            'data_view': 'keyword_search'}),
         ('description', {'type': TranslatableFormMixin.TEXT, 'label': _('Description'), 'required': False}),
     )
 
@@ -129,7 +149,7 @@ class PhotoEditForm(UnpackingMixin, FieldsetFormMixin, TranslatableFormMixin, Ph
     galleries = Select2MultipleField(data_view='gallery_search', label=_('Galleries'), required=False)
     status = forms.ChoiceField(label=_('Status'), choices=PHOTO_STATUS_CHOICES, required=False)
     exif_date = forms.DateField(label=_('Capture date'), input_formats=[EXIF_DATE_FORMAT])
-    image = forms.FileField(label=_('Change Photo'), required=False)
+    image = forms.FileField(label=_('Change File'), required=False)
     upload_id = forms.CharField(widget=forms.widgets.HiddenInput(), required=False)
     # metadata
     categories = Select2MultipleField(data_view='category_search', label=_('Categories'), required=False)
@@ -150,19 +170,37 @@ class PhotoEditForm(UnpackingMixin, FieldsetFormMixin, TranslatableFormMixin, Ph
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         if self.initial.get('image_flickr', ''):
             self.fields['image'].widget = forms.widgets.HiddenInput()
+
         # add attributes to update image
         self.fields['image'].widget.attrs.update({
             'data-chunk-url': reverse_lazy('api_chunked_upload'),
             'data-chunk-complete-url': reverse_lazy('api_chunked_upload_complete'),
+            'data-chunk-size': config.PHOTO_UPLOAD_CHUNK_SIZE,
             'data-error-msg': _('An error has occurred. Please, try again.'),
             'data-max-file-size': config.MAX_FILE_SIZE,
             'data-max-size-message': "{} {} {}".format(
-                _('Sorry, the maximum image size allowed is'), config.MAX_FILE_SIZE, _('MB')),
-            'data-file-type-message': _('Sorry, only gif, png, jpg, jpeg, tif and tiff images are allowed.'),
+                _('Sorry, the maximum file size allowed is'),
+                config.MAX_FILE_SIZE,
+                _('MB')),
+            'data-max-photo-file-size': config.MAX_PHOTO_FILE_SIZE,
+            'data-max-photo-file-size-message': "{} {} {}".format(
+                _('Sorry, the maximum image file size allowed is'),
+                config.MAX_PHOTO_FILE_SIZE,
+                _('MB')),
+            'data-file-type-message': "{}: {}.".format(
+                _('Sorry, only the following formats are allowed'),
+                ', '.join(FORMATS)),
             'data-loading-gif': staticfiles_storage.url('bima_back/img/loader.gif'),
         })
+
+        # add youtube and vimeo codes for videos
+        if kwargs.get('initial', {}).get('file_type') == 'video':
+            self.fieldsets[0].fields.extend(('youtube_code', 'vimeo_code'))
+            self.fields['youtube_code'] = forms.CharField(label=_('Youtube code'), required=False)
+            self.fields['vimeo_code'] = forms.CharField(label=_('Vimeo code'), required=False)
 
 
 class PhotoEditMultipleForm(PhotoEditForm):
@@ -183,6 +221,36 @@ class PhotoEditMultipleForm(PhotoEditForm):
 
         self.fields['image'].widget = forms.widgets.HiddenInput()
         self.fields['status'].widget.choices = [('', '----')] + PHOTO_STATUS_CHOICES
+
+
+class YoutubeChannelForm(forms.Form):
+    youtube_channel = forms.ChoiceField(label='', widget=forms.RadioSelect)
+
+    def __init__(self, youtube_channels, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = [(ch['id'], self._channel_label(ch)) for ch in youtube_channels]
+        self.fields['youtube_channel'].widget.choices = choices
+        self.fields['youtube_channel'].initial = choices[0][0]
+
+    @staticmethod
+    def _channel_label(ch):
+        return '{} - {}'.format(ch['name'], ch['account']['username'])
+
+
+class VimeoAccountForm(forms.Form):
+    vimeo_account = forms.ChoiceField(label='', widget=forms.RadioSelect)
+
+    def __init__(self, vimeo_accounts, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = [(va['id'], self._account_label(va)) for va in vimeo_accounts]
+        self.fields['vimeo_account'].widget.choices = choices
+        self.fields['vimeo_account'].initial = choices[0][0]
+
+    @staticmethod
+    def _account_label(account):
+        if not account['username']:
+            return account['name']
+        return '{} - {}'.format(account['name'], account['username'])
 
 
 class GalleryForm(TranslatableFormMixin, forms.Form):
@@ -291,7 +359,7 @@ class UserForm(forms.Form):
 
 # Filters
 
-class AdvancedSemanticSearchForm(UnpackingMixin, FilterBase):
+class AdvancedSemanticSearchForm(UnassignedMixin, UnpackingMixin, FilterBase):
     """
     Searcher form try to look for photos matching for the requested text.
     Searcher form try to look for photos matching for each one of next fields.
@@ -299,11 +367,13 @@ class AdvancedSemanticSearchForm(UnpackingMixin, FilterBase):
     - description
     """
     unpack_field_names = ('album', 'categories', 'gallery', )
+    unassigned_field_names = ('categories', 'gallery', )
     if getattr(settings, 'PHOTO_TYPES_ENABLED', False):
         unpack_field_names += ('photo_type', )
+        unassigned_field_names += ('photo_type', )
 
     # semantic search
-    q = forms.CharField(help_text=_('Set text or part of text you want to search into the photos'), label=_('Text'))
+    q = forms.CharField(help_text=_('Set text or part of text you want to search into the assets'), label=_('Text'))
     # advanced accurate search
     title = forms.CharField(label=_('Title'))
     description = forms.CharField(label=_('Description'))
@@ -365,3 +435,28 @@ class CategoryFilterForm(FilterBase):
     Form to filter categories by name
     """
     name = forms.CharField(label=_('Name'), max_length=128)
+
+
+class GalleryFilterForm(FilterBase):
+    """
+    Form to filter gallery by title and status (private/published)
+    """
+    ALL = ''
+    PRIVATE = 0
+    PUBLISHED = 1
+
+    STATUS_CHOICES = [
+        (ALL, _('All')),
+        (PRIVATE, _('Private')),
+        (PUBLISHED, _('Published')),
+    ]
+
+    title = forms.CharField(label=_('Title'), max_length=128)
+    status = forms.ChoiceField(label=_('Status'), choices=STATUS_CHOICES)
+
+
+class AlbumFilterForm(FilterBase):
+    """
+    Form to filter album by title
+    """
+    title = forms.CharField(label=_('Title'), max_length=128)

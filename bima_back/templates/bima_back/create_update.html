@@ -1,5 +1,5 @@
 {% extends 'bima_back/base.html' %}
-{% load i18n staticfiles compress bima_back_tags %}
+{% load i18n static compress bima_back_tags %}
 {% get_available_languages as LANGUAGES %}
 
 {% block page_css %}
@@ -65,6 +65,7 @@
         // open collapsed sections with required fields
         $("#fieldset-general").collapse('show');
         $("#fieldset-copyright").collapse('show');
+        $("#fieldset-metadata").collapse('show');
 
         // active required language tab
         var containerSelector = $('.form-language-tabs .language-content');

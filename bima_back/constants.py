@@ -15,7 +15,8 @@ DEFAULT_CONSTANCE = {
     'RESET_USER_PASSWORD_URL': ('', 'Url to reset a user password.'),
     'REMEMBER_USER_URL': ('', 'Url to remember a user in ldap.'),
     'FOOTER_TEXT': ('', 'Text to display on the footer.'),
-    'MAX_FILE_SIZE': (100, 'Maximum photo size allowed to upload, in MB.'),
+    'MAX_FILE_SIZE': (100, 'Maximum file size allowed to upload, in MB.'),
+    'MAX_PHOTO_FILE_SIZE': (0, 'Maximum photo file size allowed to upload, in MB. (0 means no special limitation.)'),
 }
 
 # http code status
@@ -101,3 +102,9 @@ PUBLIC_API_SCHEMA_URL = 'public_api/docs/'
 CACHE_USER_PROFILE_PREFIX_KEY = 'user'
 CACHE_SCHEMA_PREFIX_KEY = 'schema'
 CACHE_TAXONOMY_PREFIX_KEY = 'taxonomy'
+
+NOT_ASSIGNED_AUTOCOMPLETE_CHOICE_TEXT = _('Unassigned')
+NOT_ASSIGNED_AUTOCOMPLETE_CHOICE_ID = -1
+NOT_ASSIGNED_CHOICES = [
+    (NOT_ASSIGNED_AUTOCOMPLETE_CHOICE_ID, NOT_ASSIGNED_AUTOCOMPLETE_CHOICE_TEXT)
+]

@@ -1,20 +1,25 @@
 {% extends 'bima_back/detail.html' %}
 {% load i18n static bootstrap_pagination django_bootstrap_breadcrumbs %}
 
+{% block page_css_uncompress %}
+  <link rel="stylesheet" href="{% static 'bima_back/css/normalize.css' %}">
+  <link rel="stylesheet" href="{% static 'bima_back/css/set1.css' %}">
+{% endblock page_css_uncompress %}
+
 {% block content_header %}
   {{ block.super }}
   <div class="buttonsHeader">
     {% if instance.permissions.write %}
     <a class="btn btn-info delete pull-right" href="{% url 'album_delete' instance.id %}">
-      <i class="fa fa-times" aria-hidden="true"></i> {% trans 'Delete Album' %}
+      <i class="fa fa-times" aria-hidden="true"></i> {% trans 'Delete' %}
     </a>
     <a class="btn btn-default pull-right" href="{% url 'album_edit' instance.id %}">
-      <i class="fa fa-pencil" aria-hidden="true"></i> {% trans 'Edit Album' %}
+      <i class="fa fa-pencil" aria-hidden="true"></i> {% trans 'Edit' %}
     </a>
     {% endif %}
     {% if request.user.permissions.photo.write %}
     <a class="btn btn-default pull-right" href="{% url 'photo_create' instance.id %}?album={{ instance.title }}">
-      <i class="fa fa-upload" aria-hidden="true"></i> {% trans 'Upload Photo' %}
+      <i class="fa fa-upload" aria-hidden="true"></i> {% trans 'Upload' %}
     </a>
     {% endif %}
     <a class="btn btn-default pull-right" data-toggle="modal" data-target="#myModal">
@@ -69,7 +74,7 @@
       <div class="no-yet">
         <div class="info">
           <img src="{% static 'bima_back/img/icon_alert.png' %}" class="imageIcon"/>
-          <p>{% trans 'This album has no photos yet' %}<p>
+          <p>{% trans 'This album has no assets yet' %}<p>
         </div>
       </div>
     {% endfor %}
